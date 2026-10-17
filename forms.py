@@ -1,37 +1,45 @@
-import uuid
-
 from django import forms
 
 from accounts.forms import BootstrapMixin
-from accounts.models import phone_validator
+from events.models import Event, EventCategory
+
+from .models import ContactMessage, PlatformSettings
 
 
-class CheckoutForm(BootstrapMixin, forms.Form):
-    PAYMENT_CHOICES = [
-        ("cod", "Cash on delivery / pay at the venue"),
-        ("manual", "Manual transfer (bank / bKash / Nagad)"),
-    ]
-    full_name = forms.CharField(max_length=150, label="Full name")
-    email = forms.EmailField(label="Email (tickets are sent here)")
-    phone = forms.CharField(max_length=20, validators=[phone_validator])
-    payment_method = forms.ChoiceField(choices=PAYMENT_CHOICES, widget=forms.RadioSelect, initial="cod")
-    payment_reference = forms.CharField(max_length=120, required=False, label="Transfer reference / transaction ID")
-    notes = forms.CharField(max_length=255, required=False, widget=forms.Textarea(attrs={"rows": 2}), label="Notes (optional)")
-    idempotency_key = forms.UUIDField(widget=forms.HiddenInput, initial=uuid.uuid4)
+class ContactForm(BootstrapMixin, forms.ModelForm):
+    class Meta:
+        model = ContactMessage
+        fields = ("name", "email", "subject", "message")
+        widgets = {"message": forms.Textarea(attrs={"rows": 5})}
 
-    def __init__(self, *args, **kwargs):
+
+class CategoryForm(BootstrapMixin, forms.ModelForm):
+    class Meta:
+        model = EventCategory
+        fields = ("name", "icon", "description")
+
+
+class SettingsForm(BootstrapMixin, forms.ModelForm):
+    class Meta:
+        model = PlatformSettings
+        fields = ("site_name", "tagline", "contact_email", "contact_phone", "address", "currency_symbol",
+                  "currency_code", "service_fee_percent", "require_event_approval")
+
+
+class ReportFilterForm(BootstrapMixin, forms.Form):
+    report = forms.ChoiceField(choices=[("sales", "Bookings & sales"), ("events", "Event summary")], required=False)
+    date_from = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}))
+    date_to = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}))
+    event = forms.ModelChoiceField(queryset=Event.objects.none(), required=False, empty_label="All events")
+
+    def __init__(self, *args, events_qs=None, **kwargs):
         super().__init__(*args, **kwargs)
-        from payments.gateways import online_gateways
-
-        self.fields["payment_method"].widget.attrs["class"] = "form-check-input"
-        self.fields["payment_method"].choices = self.PAYMENT_CHOICES + [(g.key, g.label) for g in online_gateways()]
+        if events_qs is not None:
+            self.fields["event"].queryset = events_qs.order_by("-start_datetime")
 
     def clean(self):
         cleaned = super().clean()
-        if cleaned.get("payment_method") == "manual" and not cleaned.get("payment_reference", "").strip():
-            self.add_error("payment_reference", "Enter your transfer reference so we can verify the payment.")
+        a, b = cleaned.get("date_from"), cleaned.get("date_to")
+        if a and b and b < a:
+            self.add_error("date_to", "End date must be after the start date.")
         return cleaned
-
-
-class CheckInForm(BootstrapMixin, forms.Form):
-    code = forms.CharField(max_length=200, label="Ticket code / QR content / ticket number")
