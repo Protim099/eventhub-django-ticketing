@@ -1,20 +1,22 @@
-from django.urls import path
-
-from . import views
-
-app_name = "bookings"
+from django.conf import settings
+from django.conf.urls.static import static
+from django.contrib import admin
+from django.urls import include, path
 
 urlpatterns = [
-    path("checkout/<slug:slug>/", views.checkout, name="checkout"),
-    path("my/", views.my_bookings, name="my_bookings"),
-    path("tickets/", views.my_tickets, name="my_tickets"),
-    path("ticket/<uuid:code>/pdf/", views.ticket_pdf, name="ticket_pdf"),
-    path("ticket/<uuid:code>/qr.png", views.ticket_qr, name="ticket_qr"),
-    path("verify/<uuid:code>/", views.verify_ticket, name="verify"),
-    path("verify/<uuid:code>/check-in/", views.verify_checkin, name="verify_checkin"),
-    path("event/<slug:slug>/check-in/", views.checkin_console, name="checkin"),
-    path("event/<slug:slug>/attendees/", views.attendees, name="attendees"),
-    path("<str:booking_id>/", views.booking_detail, name="detail"),
-    path("<str:booking_id>/cancel/", views.booking_cancel, name="cancel"),
-    path("<str:booking_id>/pdf/", views.booking_pdf, name="pdf"),
+    path("admin/", admin.site.urls),
+    path("accounts/", include("accounts.urls")),
+    path("bookings/", include("bookings.urls")),
+    path("payments/", include("payments.urls")),
+    path("dashboard/", include("dashboard.urls")),
+    path("", include("dashboard.public_urls")),
+    path("", include("events.urls")),
 ]
+
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+
+handler400 = "dashboard.views.error_400"
+handler403 = "dashboard.views.error_403"
+handler404 = "dashboard.views.error_404"
+handler500 = "dashboard.views.error_500"
